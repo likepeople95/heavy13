@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>무거운 13</title>
   <meta name="description" content="받침대가 13을 넘지 않게 바위를 올리는 2~7인 심리전 보드게임" />
-  <meta name="theme-color" content="#263036" />
+  <meta name="theme-color" content="#14191c" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,7 +14,19 @@
 </head>
 <body>
   <main id="app" aria-live="polite"></main>
+  <div id="dock-root"></div>
   <div id="toast" role="status" aria-live="assertive"></div>
+  <div id="call" aria-hidden="true"></div>
+  <dialog id="confirm" aria-labelledby="confirm-title">
+    <form method="dialog" class="confirm">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-body"></p>
+      <div class="row">
+        <button class="btn danger" value="ok" id="confirm-ok"></button>
+        <button class="btn" value="cancel" autofocus>계속하기</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="rules" aria-labelledby="rules-title">
     <form method="dialog" class="rules">
       <h2 id="rules-title">규칙</h2>

@@ -38,7 +38,7 @@ async function mutate(store, code, fn, beat) {
     const now = Date.now();
     const draft = structuredClone(room);
     advance(draft, now);
-    const extra = fn ? fn(draft, now) : {};
+    const extra = fn ? fn(draft, now, presence) : {};
     const changed = fn ? true : JSON.stringify(draft) !== JSON.stringify(room);
     if (!changed) return { room, presence, now, extra };
     if (await store.cas(code, ver, nextVer(ver), draft)) return { room: draft, presence, now, extra };
@@ -79,6 +79,7 @@ export default async function handler(req, res) {
           const now = Date.now();
           const { room, player } = createRoom(code, body.name, body.settings, now);
           if (await store.cas(code, "0", "1", room)) {
+            await store.beat(code, player.id, now);
             return send(res, 200, { code, token: player.token, view: viewFor(room, player, now, { [player.id]: now }) });
           }
         }
@@ -88,13 +89,16 @@ export default async function handler(req, res) {
       const code = cleanCode(body.code);
       if (code.length !== 4) throw new RoomError("방 코드는 영문 4자리예요");
       let token = String(body.token || "");
-      const { room, presence, now, extra } = await mutate(store, code, (draft, at) => {
+      const { room, presence, now, extra } = await mutate(store, code, (draft, at, pres) => {
         const me = playerByToken(draft, token);
-        return act(draft, me, action, body, at);
+        return act(draft, me, action, body, at, pres);
       });
       if (extra && extra.token) token = extra.token;
       const me = playerByToken(room, token);
-      if (me) presence[me.id] = now;
+      if (me) {
+        presence[me.id] = now;
+        await store.beat(code, me.id, now); // 행동한 사람은 접속 중으로 기록
+      }
       return send(res, 200, { ...extra, view: viewFor(room, me, now, presence) });
     }
 

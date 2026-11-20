@@ -9,6 +9,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.H13_TIME_SCALE = process.env.H13_TIME_SCALE || "0.01";
+process.env.H13_HOST_AWAY_MS = "1500"; // 병렬 실행 부하에도 흔들리지 않을 만큼
 
 const { createServer } = await import("../dev-server.js");
 const { getStore } = await import("../lib/store.js");
@@ -163,4 +164,52 @@ test("관전자(토큰 없음)는 아무 제출도 못 보고 행동도 못 함"
   assert.equal(spectator.me, null);
   assert.ok(spectator.game.picks.every((x) => x === null));
   assert.equal((await post({ action: "submit", code, token: "nope", card: 1, chip: "red" })).http, 403);
+});
+
+test("방장 중단: 게임 중 언제든 같은 방 대기실로, 바로 다시 시작", async () => {
+  const { code, players } = await makeRoom(["방장", "둘", "셋", "넷"], { submitSec: 180 });
+  await post({ action: "start", code, token: players[0].token });
+  await post({ action: "submit", code, token: players[1].token, card: 5, chip: "red" });
+
+  const denied = await post({ action: "abort", code, token: players[1].token });
+  assert.equal(denied.http, 403, "방장이 아니면 중단 못 함");
+
+  const ok = await post({ action: "abort", code, token: players[0].token });
+  assert.equal(ok.http, 200, ok.error);
+  assert.equal(ok.view.status, "lobby");
+  assert.equal(ok.view.game, null, "게임 정보가 남지 않음");
+  assert.equal(ok.view.players.length, 4, "참가자는 그대로");
+  assert.equal(ok.view.notice.kind, "aborted");
+  assert.equal(ok.view.notice.round, 1);
+
+  const other = await get(code, players[2].token);
+  assert.equal(other.status, "lobby");
+  assert.ok(!JSON.stringify(other).includes('"card":5'), "중단된 판의 제출이 남지 않음");
+
+  assert.equal((await post({ action: "abort", code, token: players[0].token })).http, 409, "진행 중이 아니면 중단 불가");
+  const again = await post({ action: "start", code, token: players[0].token });
+  assert.equal(again.http, 200, again.error);
+  assert.equal(again.view.game.round, 0);
+  assert.equal(again.view.game.gameNo, 2);
+  assert.ok(again.view.game.seats.every((s) => !s.submitted), "새 판은 제출 없이 시작");
+  assert.equal(again.view.notice, null);
+});
+
+test("방장 넘기기와 자리 비운 방장 대신 맡기", async () => {
+  const { code, players } = await makeRoom(["갑", "을", "병"]);
+  assert.equal((await post({ action: "transfer", code, token: players[1].token, id: players[2].id })).http, 403);
+  const t = await post({ action: "transfer", code, token: players[0].token, id: players[1].id });
+  assert.equal(t.http, 200, t.error);
+  assert.equal(t.view.hostId, players[1].id);
+  assert.equal(t.view.notice.kind, "host");
+
+  // 새 방장(을)이 방금 행동했으므로 병은 아직 못 맡음
+  await post({ action: "settings", code, token: players[1].token, settings: { turnSec: 30 } });
+  assert.equal((await post({ action: "claimHost", code, token: players[2].token })).http, 409);
+  // 방장이 한동안(테스트에서는 시간 축소) 접속하지 않으면 맡을 수 있음
+  await sleep(Number(process.env.H13_HOST_AWAY_MS) + 300);
+  const c = await post({ action: "claimHost", code, token: players[2].token });
+  assert.equal(c.http, 200, c.error);
+  assert.equal(c.view.hostId, players[2].id);
+  assert.equal(c.view.me.isHost, true);
 });
