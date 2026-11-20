@@ -10,6 +10,9 @@
 
 ## 배포
 - GitHub `main`에 push → Vercel 자동 배포 (Framework Preset: Other, 빌드 없음, `public/`이 정적 폴더).
+- **화면(public/)을 고쳤으면 `APP_VERSION`을 올린다**: `lib/room.js`, `public/app.js`, `public/index.html`(`?v=`) 세 곳 같은 값.
+  `tests/version.test.js`가 확인한다. 버전이 다르면 예전 코드로 열려 있던 탭이 스스로 한 번 새로고침하고(게임 중이면 안내 띠),
+  html·css·js는 vercel.json에서 `Cache-Control: no-cache`로 내보낸다.
 - 저장소는 Vercel Storage의 Upstash Redis. 환경변수 `KV_REST_API_URL`/`KV_REST_API_TOKEN` 또는 `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN`. `.env*` 파일은 절대 커밋하지 않는다.
 - 팀원이 게임 중일 수 있으니 큰 수정은 브랜치에서 작업 → Vercel Preview URL로 확인 → `main`에 합친다.
 
@@ -47,6 +50,11 @@ tests/          engine(규칙+방송 판 재생), api(4인 완주·유출 검사
 - 글꼴: 숫자·제목 Black Han Sans, 나머지 IBM Plex Sans KR. 한국어는 `word-break: keep-all`.
 - 휴대폰(390px)에서 받침대와 하단 행동 패널이 함께 보여야 한다. 수정 후 좁은 화면으로도 확인한다.
 - 문구는 쉬운 존댓말 문장. 버튼은 하는 일을 그대로 쓴다("이걸로 내기", "한 판 더 하기").
+
+## 규칙상 '자동'처럼 보이는 것 (버그 아님)
+- 놓는 순서의 마지막 사람(남은 사람이 나뿐)과 패스했던 돌은 고를 게 없어서 바로 놓인다(레인보우면 받침대만 고름).
+  2인 게임에서는 매 라운드 나중 순서인 사람이 늘 이 경우라 "자동 플레이"처럼 느껴진다 → 화면에서 미리 예고하고,
+  놓일 때 "내 돌을 놓아요" 발표, 이번 라운드 기록에 이유(마지막 순서라 바로 / 패스했던 돌 / 시간 초과로 자동)를 표시한다.
 
 ## 알려진 한계·다음 할 일 후보
 - 게임 중 나가기·관전자 입장 후 다음 판 참가는 로비로 돌아간 뒤에만 가능(방장이 중단하면 바로 로비로).

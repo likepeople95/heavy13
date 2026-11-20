@@ -1,4 +1,6 @@
 // 무거운 13 — 화면
+/** lib/room.js의 APP_VERSION과 같아야 한다. 다르면 예전 코드로 열린 탭이라 새로고침한다 */
+const APP_VERSION = "2026-11-20.3";
 const COLORS = ["red", "green", "blue"];
 const KO = { red: "빨강", green: "초록", blue: "파랑", rainbow: "레인보우" };
 const LIMIT = 13;
@@ -43,6 +45,8 @@ const S = {
   stageKey: null,
   stageAt: 0,
   noticeId: undefined,
+  turnKey: null,
+  newVersion: false,
   homeMessage: null,
 };
 if (S.code && S.code.length === 4) S.token = LS.get(`h13:t:${S.code}`);
@@ -97,8 +101,26 @@ async function poll() {
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 
+/** 서버가 더 새 버전이면 안내 띠를 띄우고, 게임 중이 아니면 새로고침(같은 버전엔 한 번만 → 무한 새로고침 방지) */
+function checkVersion(view) {
+  if (!view.appVersion || view.appVersion === APP_VERSION) return false;
+  const key = `h13:reloaded:${view.appVersion}`;
+  let tried = false;
+  try { tried = sessionStorage.getItem(key) === "1"; } catch { /* 저장 불가 환경 */ }
+  const midGame = view.status === "playing" && view.me && view.me.seat >= 0;
+  S.newVersion = true; // 새로고침이 안 되더라도 안내 띠는 보이게
+  if (!tried && !midGame) {
+    try { sessionStorage.setItem(key, "1"); } catch { /* 저장 불가 환경 */ }
+    // 페이지를 다 불러오기 전에 부르면 브라우저가 무시할 수 있어서, 다 불러온 뒤에 새로고침
+    const go = () => location.reload();
+    if (document.readyState === "complete") setTimeout(go, 50);
+    else window.addEventListener("load", go, { once: true });
+  }
+}
+
 function accept(view) {
   if (!view) return;
+  checkVersion(view);
   const prev = S.view;
   S.offset = view.serverNow - Date.now();
   S.setup = false;
@@ -151,12 +173,19 @@ function detectMoments(prev, v) {
 
   const g = v.game;
   const key = g ? `${g.gameNo}-${g.round}-${g.stage}` : null;
-  const turnCall = () => announce("내 차례", g.asked.needStand ? "받침대를 고르세요" : "놓을지 패스할지 고르세요", "gold", 1000);
-  if (key === S.stageKey) {
-    // 같은 단계 안에서 내 차례가 새로 왔을 때
-    if (g?.asked && !prev?.game?.asked && (g.asked.canPass || g.asked.needStand)) turnCall();
-    return;
+  // 내 차례가 새로 왔을 때 한 번: 고를 게 있으면 '내 차례', 없으면 왜 바로 놓이는지
+  if (g && g.stage === "placing" && g.asked) {
+    const tk = `${g.gameNo}-${g.round}-${g.placements.length}-${g.passed.length}`;
+    if (tk !== S.turnKey) {
+      S.turnKey = tk;
+      if (prev) {
+        const a = g.asked;
+        if (a.canPass || a.needStand) announce("내 차례", a.needStand ? "받침대를 고르세요" : "놓을지 패스할지 고르세요", "gold", 1000);
+        else announce("내 돌을 놓아요", a.passedRock ? "패스했던 돌이라 바로 놓여요" : "마지막 순서라 고를 게 없어요", "", 1300);
+      }
+    }
   }
+  if (key === S.stageKey) return;
   S.stageKey = key;
   S.stageAt = Date.now();
   if (!prev || !g) return;
@@ -169,7 +198,6 @@ function detectMoments(prev, v) {
   } else if (g.stage === "revealChips") announce("칩 공개", "", "", 1300);
   else if (g.stage === "revealCards") announce("카드 공개", `놓는 순서 ${g.order.map((p, i) => `${i + 1}.${name(p)}`).join("  ")}`, "", 1700);
   else if (g.stage === "ended") announce("게임 종료", "결과를 발표합니다", "gold", 1800);
-  else if (g.stage === "placing" && g.asked && (g.asked.canPass || g.asked.needStand)) turnCall();
 }
 
 let callTimer = null;
@@ -273,6 +301,12 @@ function stageTotalMs(g, settings) {
   return 0;
 }
 
+function newVersionHtml() {
+  if (!S.newVersion) return "";
+  return `<div class="notice">새 버전이 배포됐어요. 새로고침해도 게임은 그대로 이어져요.
+    <div class="row"><button class="btn small" data-act="refresh">지금 새로고침</button></div></div>`;
+}
+
 function hostAwayHtml(v) {
   if (!v.me || v.me.isHost || !v.hostAway) return "";
   const host = v.players.find((p) => p.id === v.hostId);
@@ -340,8 +374,10 @@ function lobbyHtml(v) {
   const enough = v.players.length >= 2;
   return `
   <section class="lobby">
+    ${newVersionHtml()}
     ${abortedNoticeHtml(v)}
     ${hostAwayHtml(v)}
+    ${v.players.length === 2 ? `<div class="notice">2명이면 라운드마다 먼저 놓는 한 명만 놓기·패스를 고를 수 있어요. 나중 순서의 돌은 고를 게 없어서 바로 놓여요(방송 규칙: 마지막 순서는 패스 불가). 3명 이상이면 훨씬 재밌어요.</div>` : ""}
     <div>
       <p class="muted small" style="margin:0 0 10px">방 코드</p>
       <div class="code-stone">${esc(v.code)}</div>
@@ -373,6 +409,7 @@ function joinHtml(v) {
   const name = LS.get("h13:name") || "";
   return `
   <section class="lobby">
+    ${newVersionHtml()}
     <div>
       <p class="muted small" style="margin:0 0 10px">초대받은 방</p>
       <div class="code-stone">${esc(v.code)}</div>
@@ -451,11 +488,22 @@ function platesHtml(v) {
   }).join("")}</div>`;
 }
 
+/** 고르지 않고 놓인 이유 (패스했던 돌 / 마지막 순서 / 시간 초과) */
+function placementReason(g, pl) {
+  if (pl.passed) return "패스했던 돌";
+  const timeouts = (g.auto?.places || []).filter((a) => a.round === g.round).map((a) => a.seat);
+  if (timeouts.includes(pl.p)) return "시간 초과로 자동";
+  const fromQueue = g.placements.filter((x) => !x.passed);
+  if (g.queue.length === 0 && fromQueue[fromQueue.length - 1] === pl && pl.chip !== "rainbow") return "마지막 순서라 바로";
+  return "";
+}
+
 function placementLine(g, pl) {
   const name = esc(g.seats[pl.p]?.name);
+  const why = placementReason(g, pl);
   const what = `${chipEl(pl.chip)}<b>${name}</b> ${KO[pl.stand]}에 ${pl.card}`;
-  if (pl.cleared > 0) return `<li>${what} <span class="pen">${pl.sum}이 되어 벌점 +${pl.cleared}</span>${pl.passed ? `<span class="note">(패스했던 돌)</span>` : ""}</li>`;
-  return `<li>${what} <span class="note">합 ${pl.sum}${pl.passed ? ", 패스했던 돌" : ""}</span></li>`;
+  if (pl.cleared > 0) return `<li>${what} <span class="pen">${pl.sum}이 되어 벌점 +${pl.cleared}</span>${why ? `<span class="note">(${why})</span>` : ""}</li>`;
+  return `<li>${what} <span class="note">합 ${pl.sum}${why ? `, ${why}` : ""}</span></li>`;
 }
 
 function roundLogHtml(v) {
@@ -544,7 +592,11 @@ function dockHtml(v) {
       body = `${msg(`<b>내 차례예요.</b> ${chipEl(pk.chip)}${cardEl(pk.card)}`)}<div class="choice-row">${choices.join("")}</div>`;
     } else if (g.turn !== null) {
       const pk = g.picks[g.turn];
-      const mine = me && g.passed.includes(me.seat) ? " 내가 패스한 돌은 맨 뒤에 놓여요." : "";
+      let mine = "";
+      if (me && g.passed.includes(me.seat)) mine = " 내가 패스한 돌은 맨 뒤에 놓여요.";
+      else if (me && g.queue.length > 1 && g.queue[g.queue.length - 1] === me.seat) {
+        mine = g.picks[me.seat].chip === "rainbow" ? " 다음이 내 차례예요. 마지막 순서라 받침대만 고르면 돼요." : " 내 돌은 마지막 순서라 고를 것 없이 바로 놓여요.";
+      }
       body = msg(`<b>${nameOf(g.turn)}</b> 차례 ${chipEl(pk.chip)}${cardEl(pk.card)}${mine}`);
     }
   } else if (g.stage === "roundEnd") {
@@ -563,6 +615,7 @@ function gameHtml(v) {
     ${topbarHtml(v)}
     ${spectator ? `<p class="spectate">관전 중이에요. 이번 판이 끝나면 방장이 다음 판을 열 때 들어올 수 있어요.</p>` : ""}
     ${S.netError ? `<div class="notice">연결이 불안정해요. 다시 연결하는 중…</div>` : ""}
+    ${newVersionHtml()}
     ${hostAwayHtml(v)}
     ${platesHtml(v)}
     ${gameStandsHtml(v)}
@@ -578,6 +631,7 @@ function resultHtml(v) {
   const host = v.me?.isHost;
   return `
   <section class="result">
+    ${newVersionHtml()}
     ${hostAwayHtml(v)}
     <h1 class="title" style="font-size:clamp(48px,12vw,92px)">결과 발표</h1>
     <ol class="ranks">${rows.map((r, i) => {
@@ -651,7 +705,7 @@ function render() {
   }
   const now = Date.now();
   const fxKey = [S.fx.drop && now - S.fx.drop.at < DROP_MS, ...COLORS.map((c) => S.fx.bust[c] && now - S.fx.bust[c].at < BUST_MS)].join();
-  const key = JSON.stringify([screen, v && { ...v, serverNow: 0 }, S.showHistory, S.netError, fxKey]);
+  const key = JSON.stringify([screen, v && { ...v, serverNow: 0 }, S.showHistory, S.netError, S.newVersion, fxKey]);
   if (key !== S.renderKey || S.screen !== screen) {
     S.renderKey = key;
     S.screen = screen;
@@ -754,6 +808,7 @@ document.addEventListener("click", async (ev) => {
   if (a === "rules") return rulesDialog.showModal();
   if (a === "history") { S.showHistory = !S.showHistory; return render(); }
   if (a === "copy") return copyLink();
+  if (a === "refresh") return location.reload();
   if (a === "home") return leaveRoom();
   if (a === "reload") {
     S.setup = false;
