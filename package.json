@@ -1,0 +1,14 @@
+{
+  "name": "heavy13",
+  "version": "1.0.0",
+  "private": true,
+  "description": "무거운 13 — 4~7인 실시간 웹 보드게임 (Vercel + Upstash Redis)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node dev-server.js",
+    "test": "node --test \"tests/*.test.js\""
+  }
+}

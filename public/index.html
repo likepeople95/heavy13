@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>무거운 13</title>
+  <meta name="description" content="받침대가 13을 넘지 않게 바위를 올리는 2~7인 심리전 보드게임" />
+  <meta name="theme-color" content="#263036" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app" aria-live="polite"></main>
+  <div id="toast" role="status" aria-live="assertive"></div>
+  <dialog id="rules" aria-labelledby="rules-title">
+    <form method="dialog" class="rules">
+      <h2 id="rules-title">규칙</h2>
+      <ol>
+        <li>모두 바위 카드 <b>0~6</b> 일곱 장, 칩 <b>빨강 2 · 초록 2 · 파랑 2 · 레인보우 1</b>을 받습니다.</li>
+        <li>매 라운드 카드 1장과 칩 1개를 몰래 냅니다. 칩을 먼저 공개하고, 카드를 나중에 공개합니다.</li>
+        <li>칩 색이 받침대, 카드 숫자가 바위 무게입니다. 레인보우는 놓을 때 받침대를 고릅니다.</li>
+        <li>놓는 순서는 레인보우를 낸 사람 먼저, 그다음 숫자가 큰 사람부터입니다. 숫자가 같으면 선 플레이어부터 시계 방향입니다.</li>
+        <li>자기 차례에 <b>패스</b>할 수 있습니다. 패스한 바위는 다른 바위를 다 놓은 뒤에 놓고, 먼저 패스한 사람이 가장 늦게 놓습니다. 아직 안 놓은 사람이 나 혼자라면 패스할 수 없습니다.</li>
+        <li>놓은 뒤 받침대 합이 <b>13 이상</b>이 되면, 원래 있던 바위를 모두 치우고 그 개수만큼 벌점을 받습니다. 방금 놓은 내 바위는 남습니다. 무게 0인 바위도 한 개로 셉니다.</li>
+        <li>라운드에서 마지막으로 벌점을 받은 사람이 다음 라운드의 선 플레이어가 됩니다.</li>
+        <li>7라운드가 끝나면 카드와 칩을 새로 받습니다. 받침대는 그대로 이어집니다. 모두 14라운드입니다.</li>
+        <li>벌점이 적을수록 높은 순위입니다. 벌점이 같으면 더 최근에 벌점을 받은 사람이 아래입니다.</li>
+      </ol>
+      <p class="rules-note">제한시간 안에 고르지 않으면 남은 패에서 무작위로 내고, 차례를 넘기면 그대로 놓습니다. 레인보우는 벌점이 가장 적은 받침대에 놓습니다.</p>
+      <button class="btn primary" value="close">닫기</button>
+    </form>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
